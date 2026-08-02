@@ -11,6 +11,7 @@ Watch a movie with a friend — same screen, same sound, two headsets.
 ![macOS 26+](https://img.shields.io/badge/macOS-26%2B-000000?style=flat-square&logo=apple&logoColor=white)
 ![Swift 6](https://img.shields.io/badge/Swift-6-000000?style=flat-square&logo=swift&logoColor=white)
 ![Tests](https://img.shields.io/badge/tests-51%20passing-000000?style=flat-square)
+![Universal](https://img.shields.io/badge/universal-Apple%20Silicon%20%2B%20Intel-000000?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-000000?style=flat-square)
 
 <img src="Assets/screenshot-panel.png" width="330" alt="ShareSound panel">
@@ -54,14 +55,25 @@ and it puts your system back exactly as it found it.
 
 ## Install
 
+Download the latest `.dmg` from [Releases](https://github.com/hakansoren/sharesound/releases)
+and drag ShareSound onto Applications. The build is universal — one binary for
+both Apple Silicon and Intel.
+
+Because it is signed ad-hoc rather than with an Apple Developer ID, macOS will
+not open it on the first double-click. Right-click the app, choose **Open**, and
+confirm once.
+
+### Building from source
+
 ```bash
 git clone https://github.com/hakansoren/sharesound.git
 cd sharesound
-./Scripts/build-app.sh
+./Scripts/build-app.sh          # universal .app in dist/
+./Scripts/build-dmg.sh          # and a distributable .dmg
 cp -R dist/ShareSound.app /Applications/
 ```
 
-The app is ad-hoc signed by default. To sign with your own Developer ID:
+To sign with your own Developer ID instead of ad-hoc:
 
 ```bash
 CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./Scripts/build-app.sh
@@ -113,9 +125,14 @@ swift test           # 51 tests, no hardware required
 Sources/ShareSoundKit/   Decision logic + CoreAudio layer
 Sources/ShareSound/      SwiftUI menu bar interface
 Tests/                   Tests driven by an in-memory fake audio system
-Scripts/                 Packaging and icon generation
+Scripts/                 Packaging, disk image and icon generation
 Assets/                  Icon and logo sources
 ```
+
+Release builds are universal (`arm64` + `x86_64`) with a macOS 26 deployment
+target, so they run natively on Apple Silicon and on the Intel Macs that can
+still run macOS 26. `UNIVERSAL=0 ./Scripts/build-app.sh` builds for the host
+architecture only.
 
 All decision logic lives in `ShareSessionController`, separated from CoreAudio by
 two protocols. Tests drive it through `FakeAudioSystem`, which can connect and

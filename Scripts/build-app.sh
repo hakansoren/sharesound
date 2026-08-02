@@ -7,8 +7,9 @@
 # a signature macOS quarantines the app on every launch.
 #
 # Usage:
-#   ./Scripts/build-app.sh                 # release bundle, ad-hoc signature
-#   ./Scripts/build-app.sh debug           # debug bundle
+#   ./Scripts/build-app.sh                 # release bundle, universal, ad-hoc signature
+#   ./Scripts/build-app.sh debug           # debug bundle, host architecture only
+#   UNIVERSAL=0 ./Scripts/build-app.sh     # host architecture only
 #   CODESIGN_IDENTITY="Developer ID Application: ..." ./Scripts/build-app.sh
 #
 # Assets/AppIcon.icns is embedded when present (see Scripts/make-icon.sh).
@@ -17,7 +18,6 @@ set -euo pipefail
 
 CONFIGURATION="${1:-release}"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUILD_DIR="$PROJECT_ROOT/.build/$CONFIGURATION"
 APP_BUNDLE="$PROJECT_ROOT/dist/ShareSound.app"
 CONTENTS="$APP_BUNDLE/Contents"
 ICON_SOURCE="$PROJECT_ROOT/Assets/AppIcon.icns"
@@ -27,8 +27,22 @@ BUILD_NUMBER="${BUILD_NUMBER:-1}"
 MINIMUM_MACOS="26.0"
 IDENTITY="${CODESIGN_IDENTITY:--}"
 
-echo "-> Building ($CONFIGURATION, version $VERSION)..."
-swift build -c "$CONFIGURATION" --package-path "$PROJECT_ROOT"
+# Release builds ship a universal binary so the app runs natively on Apple
+# Silicon and on the Intel Macs that can still run macOS 26. Debug builds stay
+# single-architecture, since nothing is gained by doubling the build time.
+BUILD_ARGS=(-c "$CONFIGURATION" --package-path "$PROJECT_ROOT")
+ARCH_NOTE="host architecture"
+if [[ "$CONFIGURATION" == "release" && "${UNIVERSAL:-1}" == "1" ]]; then
+    BUILD_ARGS+=(--arch arm64 --arch x86_64)
+    ARCH_NOTE="universal (arm64 + x86_64)"
+fi
+
+echo "-> Building ($CONFIGURATION, version $VERSION, $ARCH_NOTE)..."
+swift build "${BUILD_ARGS[@]}"
+
+# Ask SwiftPM where it actually put the products; the path differs between
+# single-architecture and universal builds.
+BUILD_DIR="$(swift build "${BUILD_ARGS[@]}" --show-bin-path)"
 
 echo "-> Assembling bundle..."
 rm -rf "$APP_BUNDLE"
@@ -96,6 +110,7 @@ codesign --force --options runtime --sign "$IDENTITY" "$APP_BUNDLE" 2>/dev/null 
 
 echo "-> Verifying..."
 codesign --verify --strict "$APP_BUNDLE"
+lipo -info "$CONTENTS/MacOS/ShareSound" | sed 's/^/   /'
 
 echo "Done: $APP_BUNDLE  (v$VERSION)"
 echo "  Install:  cp -R \"$APP_BUNDLE\" /Applications/"
